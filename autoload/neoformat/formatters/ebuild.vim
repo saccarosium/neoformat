@@ -1,9 +1,11 @@
+import autoload 'neoformat/utils.vim'
+
 function! neoformat#formatters#ebuild#enabled() abort
     return ['shfmt']
 endfunction
 
 function! neoformat#formatters#ebuild#shfmt() abort
-    let opts = neoformat#utils#var_default('shfmt_opt', '')
+    let opts = s:utils.VarDefault('shfmt_opt', '')
     return {
             \ 'exe': 'shfmt',
             \ 'args': ['-i ' . (&expandtab ? shiftwidth() : 0), opts],

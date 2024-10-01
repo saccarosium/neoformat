@@ -1,3 +1,5 @@
+import autoload 'neoformat/utils.vim'
+
 function! neoformat#Neoformat(bang, user_input, start_line, end_line) abort
     let view = winsaveview()
     let search = @/
@@ -18,7 +20,7 @@ endfunction
 function! s:neoformat(bang, user_input, start_line, end_line) abort
 
     if !&modifiable
-        return neoformat#utils#warn('buffer not modifiable')
+        return s:utils.Warn('buffer not modifiable')
     endif
 
     let using_visual_selection = a:start_line != 1 || a:end_line != line('$')
@@ -38,7 +40,7 @@ function! s:neoformat(bang, user_input, start_line, end_line) abort
     else
         let formatters = s:get_enabled_formatters(filetype)
         if formatters == []
-            call neoformat#utils#msg('formatter not defined for ' . filetype . ' filetype')
+            call s:utils.Msg('formatter not defined for ' . filetype . ' filetype')
             return s:basic_format()
         endif
     endif
@@ -49,7 +51,7 @@ function! s:neoformat(bang, user_input, start_line, end_line) abort
 
         if &formatprg != '' && split(&formatprg)[0] ==# formatter
                     \ && neoformat#utils#var('neoformat_try_formatprg')
-            call neoformat#utils#log('using formatprg')
+            call s:utils.Log('using formatprg')
             let fmt_prg_def = split(&formatprg)
             let definition = {
                     \ 'exe': fmt_prg_def[0],
@@ -63,9 +65,9 @@ function! s:neoformat(bang, user_input, start_line, end_line) abort
         elseif s:autoload_func_exists('neoformat#formatters#' . filetype . '#' . formatter)
             let definition =  neoformat#formatters#{filetype}#{formatter}()
         else
-            call neoformat#utils#log('definition not found for formatter: ' . formatter)
+            call s:utils.Log('definition not found for formatter: ' . formatter)
             if using_user_passed_formatter
-                call neoformat#utils#msg('formatter definition for ' . a:user_input . ' not found')
+                call s:utils.Msg('formatter definition for ' . a:user_input . ' not found')
 
                 return s:basic_format()
             endif
@@ -75,7 +77,8 @@ function! s:neoformat(bang, user_input, start_line, end_line) abort
         let cmd = s:generate_cmd(definition, filetype)
         if cmd == {}
             if using_user_passed_formatter
-                return neoformat#utils#warn('formatter ' . a:user_input . ' failed')
+                call s:utils.Warn('formatter ' . a:user_input . ' failed')
+                return
             endif
             continue
         endif
@@ -83,15 +86,15 @@ function! s:neoformat(bang, user_input, start_line, end_line) abort
         let stdin = getbufline(bufnr('%'), a:start_line, a:end_line)
         let original_buffer = getbufline(bufnr('%'), 1, '$')
 
-        call neoformat#utils#log(stdin)
+        call s:utils.Log(stdin)
 
-        call neoformat#utils#log(cmd.exe)
+        call s:utils.Log(cmd.exe)
         if cmd.stdin
-            call neoformat#utils#log('using stdin')
+            call s:utils.Log('using stdin')
             let stdin_str = join(stdin, "\n")
             let stdout = split(system(cmd.exe, stdin_str), '\n')
         else
-            call neoformat#utils#log('using tmp file')
+            call s:utils.Log('using tmp file')
             call writefile(stdin, cmd.tmp_file_path)
             let stdout = split(system(cmd.exe), '\n')
         endif
@@ -101,16 +104,16 @@ function! s:neoformat(bang, user_input, start_line, end_line) abort
             let stdout = readfile(cmd.tmp_file_path)
         endif
 
-        call neoformat#utils#log(stdout)
+        call s:utils.Log(stdout)
 
-        call neoformat#utils#log(cmd.valid_exit_codes)
-        call neoformat#utils#log(v:shell_error)
+        call s:utils.Log(cmd.valid_exit_codes)
+        call s:utils.Log(v:shell_error)
 
         let process_ran_succesfully = index(cmd.valid_exit_codes, v:shell_error) != -1
 
         if cmd.stderr_log != ''
-            call neoformat#utils#log('stderr output redirected to file' . cmd.stderr_log)
-            call neoformat#utils#log_file_content(cmd.stderr_log)
+            call s:utils.Log('stderr output redirected to file' . cmd.stderr_log)
+            call s:utils.LogFileContent(cmd.stderr_log)
         endif
         if process_ran_succesfully
             " 1. append the lines that are before and after the formatterd content
@@ -130,29 +133,29 @@ function! s:neoformat(bang, user_input, start_line, end_line) abort
 
                 let endmsg = 'no change necessary with ' . cmd.name
             endif
-            if !neoformat#utils#var('neoformat_run_all_formatters')
-                return neoformat#utils#msg(endmsg)
+            if !s:utils.Var('neoformat_run_all_formatters')
+                return s:utils.Msg(endmsg)
             endif
-            call neoformat#utils#log('running next formatter')
+            call s:utils.Log('running next formatter')
         else
             call add(formatters_failed, cmd.name)
-            call neoformat#utils#log(v:shell_error)
-            call neoformat#utils#log('trying next formatter')
+            call s:utils.Log(v:shell_error)
+            call s:utils.Log('trying next formatter')
         endif
     endfor
     if len(formatters_failed) > 0
-        call neoformat#utils#msg('formatters ' . join(formatters_failed, ", ") . ' failed to run')
+        call s:utils.Msg('formatters ' . join(formatters_failed, ", ") . ' failed to run')
     endif
     if len(formatters_changed) > 0
-        call neoformat#utils#msg(join(formatters_changed, ", ") . ' formatted buffer')
+        call s:utils.Msg(join(formatters_changed, ", ") . ' formatted buffer')
     elseif len(formatters_failed) == 0
-        call neoformat#utils#msg('no change necessary')
+        call s:utils.Warn('non of the available formatters is installed')
     endif
 endfunction
 
 function! s:get_enabled_formatters(filetype) abort
-    if &formatprg != '' && neoformat#utils#var('neoformat_try_formatprg')
-        call neoformat#utils#log('adding formatprg to enabled formatters')
+    if &formatprg != '' && s:utils.Var('neoformat_try_formatprg')
+        call s:utils.Log('adding formatprg to enabled formatters')
         let format_prg_exe = [split(&formatprg)[0]]
     else
         let format_prg_exe = []
@@ -232,7 +235,7 @@ endfunction
 function! s:generate_cmd(definition, filetype) abort
     let executable = get(a:definition, 'exe', '')
     if executable == ''
-        call neoformat#utils#log('no exe field in definition')
+        call s:utils.Log('no exe field in definition')
         return {}
     endif
 
@@ -244,11 +247,11 @@ function! s:generate_cmd(definition, filetype) abort
 
     if &shell =~ '\v%(powershell|pwsh)'
         if system('[bool](Get-Command ' . executable . ' -ErrorAction SilentlyContinue)') !~ 'True'
-            call neoformat#utils#log('executable: ' . executable . ' is not a cmdlet, function, script file, or an executable program')
+            call s:utils.Log('executable: ' . executable . ' is not a cmdlet, function, script file, or an executable program')
             return {}
         endif
     elseif !executable(executable)
-        call neoformat#utils#log('executable: ' . executable . ' is not an executable')
+        call s:utils.Log('executable: ' . executable . ' is not an executable')
         return {}
     endif
 
@@ -284,7 +287,7 @@ function! s:generate_cmd(definition, filetype) abort
     " make sure there aren't any double spaces in the cmd
     let fullcmd = join(split(_fullcmd))
     if !using_stderr
-        if neoformat#utils#should_be_verbose()
+        if s:utils.ShouldBeVerbose()
             let stderr_log = expand(tmp_dir . '/stderr.log', 1)
             let fullcmd = fullcmd . ' 2> ' . stderr_log
         else
@@ -314,7 +317,7 @@ function! s:expand_fully(string) abort
 endfunction
 
 function! s:basic_format() abort
-    call neoformat#utils#log('running basic format')
+    call s:utils.Log('running basic format')
     if !exists('g:neoformat_basic_format_align')
         let g:neoformat_basic_format_align = 0
     endif
@@ -327,18 +330,18 @@ function! s:basic_format() abort
         let g:neoformat_basic_format_trim = 0
     endif
 
-    if neoformat#utils#var('neoformat_basic_format_align')
-        call neoformat#utils#log('aligning with basic formatter')
+    if s:utils.Var('neoformat_basic_format_align')
+        call s:utils.Log('aligning with basic formatter')
         let v = winsaveview()
         silent! execute 'normal gg=G'
         call winrestview(v)
     endif
-    if neoformat#utils#var('neoformat_basic_format_retab')
-        call neoformat#utils#log('converting tabs with basic formatter')
+    if s:utils.Var('neoformat_basic_format_retab')
+        call s:utils.Log('converting tabs with basic formatter')
         retab
     endif
-    if neoformat#utils#var('neoformat_basic_format_trim')
-        call neoformat#utils#log('trimming whitespace with basic formatter')
+    if s:utils.Var('neoformat_basic_format_trim')
+        call s:utils.Log('trimming whitespace with basic formatter')
         " http://stackoverflow.com/q/356126
         let search = @/
         let view = winsaveview()
